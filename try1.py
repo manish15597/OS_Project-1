@@ -31,5 +31,5 @@ plt.savefig('test.jpg')
 message = message + """<img src=\"test.jpg\"></body>"""
 f.write(message)
 f.close()
-filename = 'file:///home/alconblue/projects/OS/abc.html'
+filename = 'abc.html'
 webbrowser.open_new_tab(filename)
