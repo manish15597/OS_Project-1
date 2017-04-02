@@ -92,12 +92,15 @@ int main()
 	{
 		scanf("%d%d",&processNum,&reqMemory);
 		result = getRequest(processNum,reqMemory,noOfProcesses);
-		if(result==1)
+		if(result==1){
 			noOfHits++;
-		else if(result==0)
+		}
+		else if(result==0){
 			noOfMiss++;
-		else if(result==-1)
+		}
+		else if(result==-1){
 			printf("TRAP\n");
+		}
 	
 	}
 
