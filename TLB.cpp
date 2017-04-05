@@ -18,6 +18,9 @@ Total process size should not exceed 4GB
 Frames are allocated continously
 */
 
+#define pageSize 4
+#define totalTLBEntries 128
+int totalPageTableEntry;
 struct entry
 {
 	int asid,pageNum,frameNum,VorI,RWX;
@@ -27,10 +30,11 @@ vector <pair<int, pair<int, int> > >process;
 
 struct entry TLB[128],pageTable[1000000];
 //Page Table Size = 4GB/4KB = 1000000
+int TLBCount[128];
 
 void createPageTable(int noOfProcesses)
 {
-	int i,j,temp,pageSize = 4,currPageNum=0,overallPageNum=0;
+	int i,j,temp,currPageNum=0,overallPageNum=0;
 
 	for(i=1;i<=noOfProcesses;i++)
 	{
@@ -48,22 +52,88 @@ void createPageTable(int noOfProcesses)
 			overallPageNum++;
 		}
 	}
+	totalPageTableEntry = overallPageNum;
+}
+
+bool findInTLB(int processNum,int reqMemory)
+{
+	int reqPageNum = (reqMemory/pageSize),flag=0;
+	for(int i=0;i<totalTLBEntries;i++)
+	{
+		if(TLB[i].asid == processNum && TLB[i].pageNum == reqPageNum )
+		{
+			printf("Entry Found at TLB index = %d\n",i);
+			//printf("Logical address = %d\nPhysical address =%d\n",);
+			TLBCount[i] = 0;
+			flag = 1;
+		}
+		else
+			TLBCount[i]++;
+	}
+	if(flag)
+		return true;
+
+	return false;
+}
+
+int getPageTableIndexNum(int processNum,int reqPageNum)
+{
+	for(int i=0;i<totalPageTableEntry;i++)
+	{
+		if(pageTable[i].asid == processNum && pageTable[i].pageNum == reqPageNum)
+		{
+			return i;
+		}
+	}
+}
+
+void replaceTLB(int processNum,int reqMemory)
+{
+	int ind,maxi=-1;
+	for(int i=0;i<totalTLBEntries;i++)
+	{
+		if(TLBCount[i]>maxi)
+		{
+			maxi = TLBCount[i];
+			ind = i;
+		}
+	}
+
+	printf("Entry not found\n");
+	printf("Entry replaced at index %d\n",ind);
+
+	TLBCount[ind] = 0;
+	TLB[ind].asid = processNum;
+	TLB[ind].pageNum = (reqMemory/pageSize);
+	ind = getPageTableIndexNum(processNum,TLB[ind].pageNum);
+	TLB[ind].frameNum = pageTable[ind].frameNum;//Find from PageTable
+	TLB[ind].VorI = 1;
+	TLB[ind].RWX = pageTable[ind].RWX;
 }
 
 int getRequest(int processNum,int reqMemory,int noOfProcesses)
 {
 	//Process number checking
-	if ( !(processNum>=0 && processNum<=noOfProcesses) )
+	if ( !(processNum>0 && processNum<=noOfProcesses) )
 		return -1;
-	//Logical address checking
+	//Memory bound checking
+	if( !(reqMemory>=0 && reqMemory<process[processNum].second.first) )
+		return -1;
+
+	if(findInTLB(processNum,reqMemory))
+		return 1;
+	
+	
+	replaceTLB(processNum,reqMemory);
+	return 2;
+	
 }
 
 int main()
 {
-	int totalTLBSize,totalTLBEntries,oneTLBEntrySize,mainMemAccessTime,TLBAccessTime,noOfHits=0,noOfMiss=0,noOfProcesses,type,sizeOfProcess;
+	int totalTLBSize,oneTLBEntrySize,mainMemAccessTime,TLBAccessTime,noOfHits=0,noOfMiss=0,noOfProcesses,type,sizeOfProcess;
 
 	oneTLBEntrySize = (4+20+20+1+3);
-	totalTLBEntries = 128;
 	totalTLBSize = (oneTLBEntrySize)*(totalTLBEntries);
 
 
@@ -74,9 +144,9 @@ int main()
 	scanf("%d",&noOfProcesses);
 
 	printf("Enter Process Size (in KB) and Type(RWX)\n");
-	for(i=0;i<noOfProcesses;i++)
+	for(int i=0;i<noOfProcesses;i++)
 	{
-		scanf("%d%d",sizeOfProcess,type);
+		scanf("%d%d",&sizeOfProcess,&type);
 		process.push_back(make_pair(i+1,make_pair(sizeOfProcess,type)));
 	}
 
@@ -88,19 +158,26 @@ int main()
 	scanf("%d",&noOfRequests);
 
 	printf("enter process number and required memory\n");
-	for(i=0;i<noOfRequests;i++)
+	for(int i=0;i<noOfRequests;i++)
 	{
 		scanf("%d%d",&processNum,&reqMemory);
+		//printf("Logical Address = %d\n",);
 		result = getRequest(processNum,reqMemory,noOfProcesses);
-		if(result==1)
-			noOfHits++;
-		else if(result==0)
-			noOfMiss++;
-		else if(result==-1)
+		if(result==-1){
 			printf("TRAP\n");
+		}
+		else if(result==0){
+			noOfMiss++;
+		}
+		else if(result==1){
+			noOfHits++;
+		}
 	
 	}
 
+	printf("Total access time with TLB = %d\n",((mainMemAccessTime*noOfMiss) + (TLBAccessTime*noOfHits) ) );
+	printf("Total access time without TLB = %d\n",(mainMemAccessTime*noOfRequests));
 
+	
 	return 0;
 }
